@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+</head>
+<body>
+    <h2>Bem-vindo, {{ usuario }}</h2>
+    <form action="/registrar" method="post">
+        <button type="submit" name="tipo" value="entrada">Registrar Entrada</button>
+        <button type="submit" name="tipo" value="saida">Registrar Saída</button>
+    </form>
+    <a href="/logout">Sair</a>
+</body>
+</html>
