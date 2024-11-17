@@ -1,82 +1,73 @@
-from flask import Flask, render_template, request, session, redirect, url_for
-from flask_socketio import SocketIO
+from flask import Flask, render_template, request, redirect, url_for, session
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
 import gspread
-from pyngrok import ngrok
+from flask_socketio import SocketIO
+import os
 
 # Configuração do Flask
 app = Flask(__name__)
-app.secret_key = "chave_secreta_segura"  # Alterar para algo seguro
+app.secret_key = 'chave_secreta_para_sessao'  # Troque para uma chave segura
 socketio = SocketIO(app)
 
-# Configuração do Google Sheets
+# Configuração para o Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("seu_arquivo_chave.json", scope)
 client = gspread.authorize(credentials)
-sheet = client.open("Ponto Eletrônico").sheet1
+sheet = client.open("Ponto Eletrônico").sheet1  # Certifique-se que o nome está correto
 
-# Simulação de usuários (login)
-usuarios = {"joao": "1234", "maria": "5678"}  # Usuários fictícios
+# Usuários fictícios (troque conforme necessário)
+usuarios = {
+    "usuario1": "senha1",
+    "usuario2": "senha2"
+}
 
-@app.route("/")
-def home():
-    if "usuario" in session:
-        return redirect(url_for("dashboard"))
+# Rota inicial (Login)
+@app.route("/", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        usuario = request.form["usuario"]
+        senha = request.form["senha"]
+        if usuario in usuarios and usuarios[usuario] == senha:
+            session["usuario"] = usuario
+            return redirect(url_for("dashboard"))
+        else:
+            return "Usuário ou senha inválidos", 401
     return render_template("login.html")
 
-@app.route("/login", methods=["POST"])
-def login():
-    usuario = request.form["usuario"]
-    senha = request.form["senha"]
-    if usuario in usuarios and usuarios[usuario] == senha:
-        session["usuario"] = usuario
-        return redirect(url_for("dashboard"))
-    return "Login ou senha incorretos. Tente novamente."
-
+# Rota do dashboard
 @app.route("/dashboard")
 def dashboard():
     if "usuario" not in session:
-        return redirect(url_for("home"))
+        return redirect(url_for("login"))
     return render_template("dashboard.html", usuario=session["usuario"])
 
-@app.route("/registrar", methods=["POST"])
-def registrar():
-    if "usuario" not in session:
-        return redirect(url_for("home"))
+# Rota para registrar ponto de entrada
+@app.route("/ponto/entrada", methods=["POST"])
+def registrar_entrada():
+    if "usuario" in session:
+        usuario = session["usuario"]
+        sheet.append_row([usuario, "Entrada", "Horário será adicionado automaticamente"])
+        return "Ponto de entrada registrado com sucesso!"
+    return redirect(url_for("login"))
 
-    tipo = request.form["tipo"]  # "entrada" ou "saida"
-    now = datetime.now()
-    data = now.strftime("%Y-%m-%d")
-    hora = now.strftime("%H:%M:%S")
-    usuario = session["usuario"]
+# Rota para registrar ponto de saída
+@app.route("/ponto/saida", methods=["POST"])
+def registrar_saida():
+    if "usuario" in session:
+        usuario = session["usuario"]
+        sheet.append_row([usuario, "Saída", "Horário será adicionado automaticamente"])
+        return "Ponto de saída registrado com sucesso!"
+    return redirect(url_for("login"))
 
-    # Obter registros atuais da planilha
-    registros = sheet.get_all_records()
-    registro_atual = next((r for r in registros if r["Data"] == data and r["Funcionário"] == usuario), None)
-
-    if tipo == "entrada" and not registro_atual:
-        sheet.append_row([data, usuario, hora, "", ""])
-        return f"Entrada registrada para {usuario} às {hora}."
-    elif tipo == "saida" and registro_atual:
-        linha = registros.index(registro_atual) + 2
-        sheet.update_cell(linha, 4, hora)  # Atualiza a saída
-        hora_entrada = datetime.strptime(registro_atual["Entrada"], "%H:%M:%S")
-        hora_saida = datetime.strptime(hora, "%H:%M:%S")
-        horas_trabalhadas = str(hora_saida - hora_entrada)
-        sheet.update_cell(linha, 5, horas_trabalhadas)
-        return f"Saída registrada para {usuario} às {hora}. Horas trabalhadas: {horas_trabalhadas}."
-    else:
-        return "Registro inválido ou já existente."
-
+# Rota para logout
 @app.route("/logout")
 def logout():
     session.pop("usuario", None)
-    return redirect(url_for("home"))
+    return redirect(url_for("login"))
 
-# Iniciar servidor com ngrok
+# Integrar Flask com Ngrok (para rodar no Colab)
 from pyngrok import ngrok
 if __name__ == "__main__":
-    public_url = ngrok.connect(5000)
+    public_url = ngrok.connect(5000)  # Exponha o servidor Flask
     print(f"Seu site está online: {public_url}")
     socketio.run(app, port=5000)
