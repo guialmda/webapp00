@@ -1,1 +1,4 @@
+# Criar o arquivo login.html dentro do diretório templates
+with open("templates/login.html", "w") as f:
+    f.write("""
 
