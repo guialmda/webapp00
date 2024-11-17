@@ -1,28 +1,23 @@
-!pip install Flask Flask-SocketIO gspread oauth2client pyngrok
-
-from google.colab import files
-uploaded = files.upload()
-
-from oauth2client.service_account import ServiceAccountCredentials
-import gspread
-
-# Autenticação com Google Sheets
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = ServiceAccountCredentials.from_json_keyfile_name("ponto-eletronico-441904-6b27668a826c.json", scope)
-client = gspread.authorize(credentials)
-
-# Acessar a planilha
-sheet = client.open("Trabalho Ponto eletronico").sheet1
-
 from flask import Flask, render_template, request, session, redirect, url_for
 from flask_socketio import SocketIO
+from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+import gspread
+from pyngrok import ngrok
 
+# Configuração do Flask
 app = Flask(__name__)
-app.secret_key = "trabalho_terca_123"  # Troque para uma string mais segura
+app.secret_key = "chave_secreta_segura"  # Alterar para algo seguro
 socketio = SocketIO(app)
 
-usuarios = {"VIni": "1234", "Willian": "1234"}  # Usuários e senhas fictícias
+# Configuração do Google Sheets
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+credentials = ServiceAccountCredentials.from_json_keyfile_name("seu_arquivo_chave.json", scope)
+client = gspread.authorize(credentials)
+sheet = client.open("Ponto Eletrônico").sheet1
+
+# Simulação de usuários (login)
+usuarios = {"joao": "1234", "maria": "5678"}  # Usuários fictícios
 
 @app.route("/")
 def home():
@@ -73,3 +68,15 @@ def registrar():
         return f"Saída registrada para {usuario} às {hora}. Horas trabalhadas: {horas_trabalhadas}."
     else:
         return "Registro inválido ou já existente."
+
+@app.route("/logout")
+def logout():
+    session.pop("usuario", None)
+    return redirect(url_for("home"))
+
+# Iniciar servidor com ngrok
+if __name__ == "__main__":
+    public_url = ngrok.connect(5000)
+    print(f"Seu site está online: {public_url}")
+    socketio.run(app, port=5000)
+
