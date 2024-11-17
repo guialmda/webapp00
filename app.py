@@ -1,83 +1,77 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+import streamlit as st
 from google.oauth2.service_account import Credentials
 import gspread
-from flask_socketio import SocketIO
-from pyngrok import ngrok
 from datetime import datetime
+import json
 import os
-from dotenv import load_dotenv
 
-# Configurar variáveis de ambiente
-load_dotenv()
-
-# Configuração do Flask
-app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "chave_secreta_padrao")  # Melhor armazenar no .env
-socketio = SocketIO(app)
-
-# Configuração para o Google Sheets
+# Configuração do Google Sheets
 scope = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
-credentials = Credentials.from_service_account_file("seu_arquivo_chave.json", scopes=scope)
-client = gspread.authorize(credentials)
-sheet = client.open("Ponto Eletrônico").sheet1  # Certifique-se que o nome está correto
 
-# Usuários fictícios (melhor usar um banco de dados)
+# Credenciais via variável de ambiente (ou arquivo JSON local)
+if "GOOGLE_CREDENTIALS" in os.environ:
+    credenciais_json = os.getenv("GOOGLE_CREDENTIALS")
+    credentials = Credentials.from_service_account_info(json.loads(credenciais_json), scopes=scope)
+else:
+    credentials = Credentials.from_service_account_file("seu_arquivo_chave.json", scopes=scope)
+
+client = gspread.authorize(credentials)
+sheet = client.open("Ponto Eletrônico").sheet1  # Certifique-se de que o nome está correto
+
+# Usuários fictícios
 usuarios = {
     "usuario1": "senha1",
     "usuario2": "senha2"
 }
 
-# Rota inicial (Login)
-@app.route("/", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        usuario = request.form["usuario"]
-        senha = request.form["senha"]
-        if usuario in usuarios and usuarios[usuario] == senha:
-            session["usuario"] = usuario
-            return redirect(url_for("dashboard"))
-        else:
-            return "Usuário ou senha inválidos", 401
-    return render_template("login.html")
+# Função para registrar entrada ou saída
+def registrar_ponto(tipo):
+    usuario = st.session_state["usuario"]
+    horario = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    sheet.append_row([usuario, tipo, horario])
+    st.success(f"Ponto de {tipo.lower()} registrado com sucesso!")
 
-# Rota do dashboard
-@app.route("/dashboard")
-def dashboard():
-    if "usuario" not in session:
-        return redirect(url_for("login"))
-    return render_template("dashboard.html", usuario=session["usuario"])
+# Interface do Streamlit
+st.title("Ponto Eletrônico")
+st.sidebar.title("Menu de Navegação")
 
-# Rota para registrar ponto de entrada
-@app.route("/ponto/entrada", methods=["POST"])
-def registrar_entrada():
-    if "usuario" in session:
-        usuario = session["usuario"]
-        horario = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        sheet.append_row([usuario, "Entrada", horario])
-        return "Ponto de entrada registrado com sucesso!"
-    return redirect(url_for("login"))
+# Verificar se o usuário está logado
+if "usuario" not in st.session_state:
+    st.session_state["usuario"] = None
 
-# Rota para registrar ponto de saída
-@app.route("/ponto/saida", methods=["POST"])
-def registrar_saida():
-    if "usuario" in session:
-        usuario = session["usuario"]
-        horario = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        sheet.append_row([usuario, "Saída", horario])
-        return "Ponto de saída registrado com sucesso!"
-    return redirect(url_for("login"))
+# Página de Login
+if st.session_state["usuario"] is None:
+    st.sidebar.write("Por favor, faça login para continuar.")
+    with st.form("login_form"):
+        usuario = st.text_input("Usuário")
+        senha = st.text_input("Senha", type="password")
+        submit = st.form_submit_button("Login")
 
-# Rota para logout
-@app.route("/logout")
-def logout():
-    session.pop("usuario", None)
-    return redirect(url_for("login"))
+        if submit:
+            if usuario in usuarios and usuarios[usuario] == senha:
+                st.session_state["usuario"] = usuario
+                st.success(f"Bem-vindo, {usuario}!")
+                st.experimental_rerun()
+            else:
+                st.error("Usuário ou senha inválidos.")
+else:
+    # Dashboard após login
+    st.sidebar.write(f"Usuário logado: {st.session_state['usuario']}")
+    st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"usuario": None}))
 
-# Integrar Flask com Ngrok
-if __name__ == "__main__":
-    public_url = ngrok.connect(5000)
-    print(f"Seu site está online: {public_url}")
-    app.run(port=5000)
+    st.header(f"Bem-vindo, {st.session_state['usuario']}!")
+
+    # Botões para registrar entrada e saída
+    if st.button("Registrar Entrada"):
+        registrar_ponto("Entrada")
+
+    if st.button("Registrar Saída"):
+        registrar_ponto("Saída")
+
+    # Visualizar registros da planilha
+    st.subheader("Registros")
+    registros = sheet.get_all_values()
+    st.table(registros)
