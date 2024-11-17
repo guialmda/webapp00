@@ -20,7 +20,7 @@ def autenticar_google_sheets():
 def registrar_ponto(nome):
     # Acessa a planilha
     client = autenticar_google_sheets()
-    sheet = client.open("Nome_da_sua_planilha").sheet1
+    sheet = client.open("Ponto Eletrônico").sheet1
 
     # Pega a data e hora atual
     data_atual = datetime.datetime.now().strftime("%Y-%m-%d")
