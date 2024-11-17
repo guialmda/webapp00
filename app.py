@@ -75,8 +75,8 @@ def logout():
     return redirect(url_for("home"))
 
 # Iniciar servidor com ngrok
+from pyngrok import ngrok
 if __name__ == "__main__":
     public_url = ngrok.connect(5000)
     print(f"Seu site está online: {public_url}")
     socketio.run(app, port=5000)
-
