@@ -1,21 +1,30 @@
 from flask import Flask, render_template, request, redirect, url_for, session
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 import gspread
 from flask_socketio import SocketIO
+from pyngrok import ngrok
+from datetime import datetime
 import os
+from dotenv import load_dotenv
+
+# Configurar variáveis de ambiente
+load_dotenv()
 
 # Configuração do Flask
 app = Flask(__name__)
-app.secret_key = 'chave_secreta_para_sessao'  # Troque para uma chave segura
+app.secret_key = os.getenv("SECRET_KEY", "chave_secreta_padrao")  # Melhor armazenar no .env
 socketio = SocketIO(app)
 
 # Configuração para o Google Sheets
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = ServiceAccountCredentials.from_json_keyfile_name("seu_arquivo_chave.json", scope)
+scope = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+credentials = Credentials.from_service_account_file("seu_arquivo_chave.json", scopes=scope)
 client = gspread.authorize(credentials)
 sheet = client.open("Ponto Eletrônico").sheet1  # Certifique-se que o nome está correto
 
-# Usuários fictícios (troque conforme necessário)
+# Usuários fictícios (melhor usar um banco de dados)
 usuarios = {
     "usuario1": "senha1",
     "usuario2": "senha2"
@@ -46,7 +55,8 @@ def dashboard():
 def registrar_entrada():
     if "usuario" in session:
         usuario = session["usuario"]
-        sheet.append_row([usuario, "Entrada", "Horário será adicionado automaticamente"])
+        horario = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sheet.append_row([usuario, "Entrada", horario])
         return "Ponto de entrada registrado com sucesso!"
     return redirect(url_for("login"))
 
@@ -55,7 +65,8 @@ def registrar_entrada():
 def registrar_saida():
     if "usuario" in session:
         usuario = session["usuario"]
-        sheet.append_row([usuario, "Saída", "Horário será adicionado automaticamente"])
+        horario = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sheet.append_row([usuario, "Saída", horario])
         return "Ponto de saída registrado com sucesso!"
     return redirect(url_for("login"))
 
@@ -65,9 +76,8 @@ def logout():
     session.pop("usuario", None)
     return redirect(url_for("login"))
 
-# Integrar Flask com Ngrok (para rodar no Colab)
-from pyngrok import ngrok
+# Integrar Flask com Ngrok
 if __name__ == "__main__":
-    public_url = ngrok.connect(5000)  # Exponha o servidor Flask
+    public_url = ngrok.connect(5000)
     print(f"Seu site está online: {public_url}")
-    socketio.run(app, port=5000)
+    app.run(port=5000)
