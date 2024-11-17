@@ -1,10 +1,5 @@
-streamlit==1.39.0
-pandas
-numpy
-matplotlib
-requests
-pytz
-deep-translator
-plotly.express
-ACTlib01
-wordcloud
+Flask
+Flask-SocketIO
+gspread
+oauth2client
+pyngrok
